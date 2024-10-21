@@ -45,7 +45,7 @@ router.post('/signup', (req, res) => {
           res.json({ result: true, newUser: dataUserFormated(dataNewUser) });
         });
       } else {
-        res.json({ result: false, error: 'Username or email already exists' });
+        res.json({ result: false, error: 'Username or email address already exists' });
       }
     });
   } else {
@@ -87,7 +87,7 @@ router.post('/signin', (req, res) => {
   User.findOne({ 
     $or: [
       { userName: new RegExp('^' + req.body.userName + '$', 'i') }, 
-      { email: req.body.email }, 
+      { email: req.body.email }, //toLowerCase()
     ]
   }).then((dataUser) => {
     if (dataUser) {
@@ -97,12 +97,14 @@ router.post('/signin', (req, res) => {
           const accessToken = generateAccessToken(dataUser._id);
           const refreshToken = generateRefreshToken(dataUser._id);
           res.json({ result: true, user: dataUserFormated(dataUser), accessToken: accessToken, refreshToken: refreshToken });
+        } else {
+          res.json({ result: false, error: 'Wrong password'})
         }
       } else {
         res.json({ result: false, error: 'Email address not yet verified'})
       }
     } else {
-      res.json({ result: false, error: 'User not found or wrong password' })
+      res.json({ result: false, error: 'User not found' })
     }
   });
 });
