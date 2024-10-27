@@ -4,6 +4,24 @@ var router = express.Router();
 const fetch = require('node-fetch');
 const City = require('../models/cities');
 
+let weather = [
+    "Beijing",
+    "New Delhi",
+    "Tokyo",
+    "Moscow",
+    "Jakarta",
+    "Lima",
+    "Seoul",
+    "London",
+    "Cairo",
+    "Mexico City"
+];
+
+router.get("/weather", (req, res) => {
+    res.json({ weather });
+  });
+
+// ROUTER POST ADD NEW CITY
 router.post('/', (req, res) => {
 	// Check if the city has not already been added
 	City.findOne({ cityName: { $regex: new RegExp(req.body.cityName, 'i') } }).then(cityData => {
@@ -33,12 +51,14 @@ router.post('/', (req, res) => {
 	});
 });
 
+// ROUTER GET DISPLAY ALL CITIES 
 router.get('/', (req, res) => {
 	City.find().then(data => {
 		res.json({ weather: data });
 	});
 });
 
+// ROUTER GET FIND A CITY
 router.get("/:cityName", (req, res) => {
   City.findOne({
     cityName: { $regex: new RegExp('^' + req.params.cityName + '$', "i") },
@@ -51,6 +71,7 @@ router.get("/:cityName", (req, res) => {
   });
 });
 
+// ROUTER DELETE REMOVE A CITY
 router.delete("/:cityName", (req, res) => {
   City.deleteOne({
     cityName: { $regex: new RegExp('^' + req.params.cityName + '$', "i") },

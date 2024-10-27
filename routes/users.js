@@ -6,8 +6,9 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 const { checkBody } = require('../modules/checkBody');
-const { sendWelcomeEmail } = require('../modules/emailService');
+const { sendWelcomeEmail, sendUpdatePasswordEmail } = require('../modules/emailService');
 const { authenticateToken } = require('../middlewares/authenticateToken');
+const { checkIfAlreadyPresentToken } = require('../middlewares/checkIfAlreadyPresentToken');
 const { generateAccessToken, generateRefreshToken } = require('../modules/jwtService');
 
 const dataUserFormated = (data) => {
@@ -32,7 +33,7 @@ router.post('/signup', (req, res) => {
         { userName: new RegExp('^' + req.body.userName + '$', 'i') }, 
         { email: req.body.email.toLowerCase() }, 
       ]
-    }).then((dataUser) => {
+    }).then(dataUser => {
       if (dataUser == null) {
         const hash = bcrypt.hashSync(req.body.password, 10);
         const newUser = new User({
@@ -54,7 +55,7 @@ router.post('/signup', (req, res) => {
 });
 
 // ROUTER GET VERIFY EMAIL
-router.get('/verify_email', (req, res) => { 
+router.get('/validate_email', (req, res) => { 
   if (!checkBody(req.query, ['token'])) {
     res.json({ result: false, error: 'Missing or empty fields' });
     return;
@@ -62,24 +63,26 @@ router.get('/verify_email', (req, res) => {
 
   jwt.verify(req.query.token, process.env.JWT_SECRET, async (err, decoded) => {
     if (err) {
-      return res.json({ result: false, error: 'Invalid or expired token' });
+      return res.send('Invalid or expired link');
     }
 
     const userEmail = decoded.email;
     
-    User.updateOne({ email: userEmail }, { $set: { emailVerified: true }})
-    .then((data) => {
+    try {
+      const data = await User.updateOne({ email: userEmail }, { $set: { emailVerified: true }})
       if (data.modifiedCount > 0) {
-        res.json('<p>Email Successfully Verified.<p> <a href="https://votresite.com" style="padding: 10px 20px; color: white; background-color: blue; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center;">Click here to log in</a>' );
+        res.send(`<p>Email successfully verified.<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center;">Click here to log in</a>`);
       } else {
-        res.json({ result: false, error: 'Internal server error', details: error.message });
+        res.send('Email adresse already verified');
       }
-    });
+    } catch (err) {
+      res.json({ result: false, error: 'Internal server error'});
+    }
   });
 });
 
 // ROUTER POST SIGNIN 
-router.post('/signin', (req, res) => {
+router.post('/signin', checkIfAlreadyPresentToken, (req, res) => {
   if (!checkBody(req.body, ['password'])) {
     res.json({ result: false, error: "Missing or empty fields" });
     return;
@@ -94,9 +97,16 @@ router.post('/signin', (req, res) => {
       if (dataUser.emailVerified) {
         const decrypt = bcrypt.compareSync(req.body.password, dataUser.password);
         if (decrypt) {
-          const accessToken = generateAccessToken(dataUser._id);
-          const refreshToken = generateRefreshToken(dataUser._id);
-          res.json({ result: true, user: dataUserFormated(dataUser), accessToken: accessToken, refreshToken: refreshToken });
+          if (dataUser.updatePassword === false) {
+            const accessToken = generateAccessToken(dataUser._id);
+            const refreshToken = generateRefreshToken(dataUser._id);
+            console.log('je taime signin');
+            res.json({ result: true, user: dataUserFormated(dataUser), accessToken: accessToken, refreshToken: refreshToken });
+          } else {
+            console.log('t es la coquin ?');
+            User.updateOne({ updatePassword: dataUser.updatePassword}, { updatePassword: false });
+            res.json({ result: false, error: 'Password change request not yet confirmed'})
+          }
         } else {
           res.json({ result: false, error: 'Wrong password'})
         }
@@ -121,9 +131,71 @@ router.post('/token', (req, res) => {
   })
 })
 
-// ROUTER GET TEST AUTHENTICATETOKEN
-router.get('/protected_route', authenticateToken, (req, res) => {
-  res.json({ message: 'This is a protected route' });
-})
+// ROUTER PUT REQUEST PASSWORD UPDATE
+router.put('/request_update', checkIfAlreadyPresentToken, (req, res) => {
+  if (!checkBody(req.body, ['userName', 'email', 'password'])) {
+    res.json({ result: false, error: 'Missing or empty fields'});
+    return;
+  }
+  User.findOne({
+    $and: [
+      { userName: new RegExp('^' + req.body.userName + '$', 'i') }, 
+      { email: req.body.email }, //toLowerCase()
+    ]
+  }).then((dataUser) => {
+    if (dataUser) {
+      if (!dataUser.updatePassword) {
+        sendUpdatePasswordEmail(dataUser.email, dataUser.userName, req.body.password);
+        //User.updateOne({ updatePassword: dataUser.updatePassword}, { $set: {updatePassword: true} }).then(data => {
+        //  if (data.modifiedCount > 0) {
+            console.log('********TOI');
+            res.json({ result: true, newPassword: 'Validation email sent' });
+        //}
+        //});
+      } else {
+        console.log('SALUT TOIiiiiiiiii');
+
+        res.json({ result: false, error: 'New password not yet confirmed'});
+      }
+    } else {
+      console.log('SALUT TOI');
+
+      res.json({ result: false, error: 'User not found' });
+    } 
+    });
+});
+
+  // ROUTER GET VALIDATE PASSWORD UPDATE
+router.get('/validate_update', (req, res) => {
+  if (!checkBody(req.query, ['token'])) {
+    res.json({ result: false, error: 'Missing or empty fields' });
+    return;
+  }    
+ 
+  jwt.verify(req.query.token, process.env.JWT_SECRET, async (err, decoded) => {
+    if (err) {
+      return res.send('Invalid or expired link');
+    }
+    const { email, password } = decoded;
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const hash = bcrypt.hashSync(password, 10);
+    user.password = hash;
+    await user.save();
+    //User.updateOne({ email: email }, {updatePassword: false }).then(data => {
+    //  if (data.modifiedCount > 0) {
+        res.send(`<p>Password successfully updated.<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center;">Click here to log in</a>`);
+    //  }
+    //});
+  })
+});
+
+
+// ROUTER POST LOGOUT
+router.post('/logout', (req, res) => {
+  res.json({ message: 'Success logout' });
+});
 
 module.exports = router;
