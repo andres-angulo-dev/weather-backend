@@ -7,7 +7,6 @@ const jwt = require('jsonwebtoken');
 
 const { checkBody } = require('../modules/checkBody');
 const { sendWelcomeEmail, sendUpdatePasswordEmail } = require('../modules/emailService');
-const { authenticateToken } = require('../middlewares/authenticateToken');
 const { checkIfAlreadyPresentToken } = require('../middlewares/checkIfAlreadyPresentToken');
 const { generateAccessToken, generateRefreshToken } = require('../modules/jwtService');
 
@@ -71,7 +70,7 @@ router.get('/validate_email', (req, res) => {
     try {
       const data = await User.updateOne({ email: userEmail }, { $set: { emailVerified: true }})
       if (data.modifiedCount > 0) {
-        res.send(`<p>Email successfully verified.<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center;">Click here to log in</a>`);
+        res.send(`<p>Email successfully verified.<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center; text-align: center;">Click here to log in</a>`);
       } else {
         res.send('Email adresse already verified');
       }
@@ -100,10 +99,8 @@ router.post('/signin', checkIfAlreadyPresentToken, (req, res) => {
           if (dataUser.updatePassword === false) {
             const accessToken = generateAccessToken(dataUser._id);
             const refreshToken = generateRefreshToken(dataUser._id);
-            console.log('je taime signin');
             res.json({ result: true, user: dataUserFormated(dataUser), accessToken: accessToken, refreshToken: refreshToken });
           } else {
-            console.log('t es la coquin ?');
             User.updateOne({ updatePassword: dataUser.updatePassword}, { updatePassword: false });
             res.json({ result: false, error: 'Password change request not yet confirmed'})
           }
@@ -119,17 +116,18 @@ router.post('/signin', checkIfAlreadyPresentToken, (req, res) => {
   });
 });
 
-// ROUTER POST HOW TOKENS WORK
-router.post('/token', (req, res) => {
-  if (!req.body.token)
-    return res.json({ result: false, error: 'Refresh token required' });
-  jwt.verify(req.body.token, process.env.JWT_REFRESH_SECRET, (err, decoded) => {
-    if (err)
+router.post('/refresh_token', (req, res) => {
+  if (!req.body.refreshToken) {
+    return res.json({ result: false, error: 'Refresh token is required' })
+  }
+  jwt.verify(req.body.refreshToken, process.env.JWT_REFRESH_SECRET, (err, decoded) => {
+    if (err) {
       return res.json({ result: false, error: 'Invalid refresh token' });
-    const  accessToken = generateAccessToken(decoded._id);
-    res.json({ accessToken });
-  })
-})
+    }
+    const refreshAccessToken = generateAccessToken(decoded._id); 
+    res.json({ result: true, accessToken: refreshAccessToken });
+  });
+});
 
 // ROUTER PUT REQUEST PASSWORD UPDATE
 router.put('/request_update', checkIfAlreadyPresentToken, (req, res) => {
@@ -146,20 +144,11 @@ router.put('/request_update', checkIfAlreadyPresentToken, (req, res) => {
     if (dataUser) {
       if (!dataUser.updatePassword) {
         sendUpdatePasswordEmail(dataUser.email, dataUser.userName, req.body.password);
-        //User.updateOne({ updatePassword: dataUser.updatePassword}, { $set: {updatePassword: true} }).then(data => {
-        //  if (data.modifiedCount > 0) {
-            console.log('********TOI');
-            res.json({ result: true, newPassword: 'Validation email sent' });
-        //}
-        //});
+        res.json({ result: true, newPassword: 'Validation email sent' });
       } else {
-        console.log('SALUT TOIiiiiiiiii');
-
         res.json({ result: false, error: 'New password not yet confirmed'});
       }
     } else {
-      console.log('SALUT TOI');
-
       res.json({ result: false, error: 'User not found' });
     } 
     });
@@ -184,14 +173,9 @@ router.get('/validate_update', (req, res) => {
     const hash = bcrypt.hashSync(password, 10);
     user.password = hash;
     await user.save();
-    //User.updateOne({ email: email }, {updatePassword: false }).then(data => {
-    //  if (data.modifiedCount > 0) {
-        res.send(`<p>Password successfully updated.<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center;">Click here to log in</a>`);
-    //  }
-    //});
+    res.send(`<p>Password successfully updated.<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center; text-align: center">Click here to log in</a>`);
   })
 });
-
 
 // ROUTER POST LOGOUT
 router.post('/logout', (req, res) => {
