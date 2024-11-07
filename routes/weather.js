@@ -72,10 +72,8 @@ router.post('/add_city_home_page', (req, res) => {
 		.then(res => res.json())
 		.then(apiData => {
 			if (!(apiData.cod === '404' && apiData.message === 'city not found')) {
-				console.log('LAAAAA')
 				res.json({ result: true, city: apiData, cityName: formatedCityName });
 			} else {
-				console.log('ICIIIII')
 				res.json({ result: false, error: 'City not found' });
 			}
 	})
