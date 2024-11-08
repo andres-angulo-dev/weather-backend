@@ -2,6 +2,7 @@ var express = require('express');
 var router = express.Router();
 
 const User = require('../models/users');
+const Usercity = require('../models/usercities');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
@@ -9,6 +10,7 @@ const { checkBody } = require('../modules/checkBody');
 const { sendWelcomeEmail, sendUpdatePasswordEmail } = require('../modules/emailService');
 const { checkIfAlreadyPresentToken } = require('../middlewares/checkIfAlreadyPresentToken');
 const { generateAccessToken, generateRefreshToken } = require('../modules/jwtService');
+const { authenticateToken } = require('../middlewares/authenticateToken');
 
 const dataUserFormated = (data) => {
   return {
@@ -55,20 +57,20 @@ router.post('/signup', (req, res) => {
 
 // ROUTER GET VERIFY EMAIL
 router.get('/validate_email', (req, res) => { 
-  if (!checkBody(req.query, ['token'])) {
+  if (!checkBody(req.query, ['userEmail', 'token'])) {
     res.json({ result: false, error: 'Missing or empty fields' });
     return;
   };
-
   jwt.verify(req.query.token, process.env.JWT_SECRET, async (err, decoded) => {
     if (err) {
-      return res.send('Invalid or expired link');
+      const deletedUserData = await User.deleteOne({ email: req.query.userEmail });
+      if (deletedUserData.deletedCount > 0) {
+        return res.send(`<p>Invalid or expired link !<br>Resubmit a new user account.<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center; text-align: center">Return to the home page</a>`);
+      }
     }
-
     const userEmail = decoded.email;
-    
     try {
-      const data = await User.updateOne({ email: userEmail }, { $set: { emailVerified: true }})
+      const data = await User.updateOne({ email: userEmail }, { $set: { verifiedEmail: true }})
       if (data.modifiedCount > 0) {
         res.send(`<p>Email successfully verified.<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center; text-align: center;">Click here to log in</a>`);
       } else {
@@ -86,6 +88,7 @@ router.post('/signin', checkIfAlreadyPresentToken, (req, res) => {
     res.json({ result: false, error: "Missing or empty fields" });
     return;
   }
+
   User.findOne({ 
     $or: [
       { userName: new RegExp('^' + req.body.userName + '$', 'i') }, 
@@ -93,15 +96,15 @@ router.post('/signin', checkIfAlreadyPresentToken, (req, res) => {
     ]
   }).then((dataUser) => {
     if (dataUser) {
-      if (dataUser.emailVerified) {
+      if (dataUser.verifiedEmail) {
         const decrypt = bcrypt.compareSync(req.body.password, dataUser.password);
         if (decrypt) {
-          if (dataUser.updatePassword === false) {
+          if (dataUser.passwordUpdate === false) {
             const accessToken = generateAccessToken(dataUser._id);
             const refreshToken = generateRefreshToken(dataUser._id);
             res.json({ result: true, user: dataUserFormated(dataUser), accessToken: accessToken, refreshToken: refreshToken });
           } else {
-            User.updateOne({ updatePassword: dataUser.updatePassword}, { updatePassword: false });
+            User.updateOne({ passwordUpdate: dataUser.passwordUpdate}, { passwordUpdate: false });
             res.json({ result: false, error: 'Password change request not yet confirmed'})
           }
         } else {
@@ -120,6 +123,7 @@ router.post('/refresh_token', (req, res) => {
   if (!req.body.refreshToken) {
     return res.json({ result: false, error: 'Refresh token is required' })
   }
+
   jwt.verify(req.body.refreshToken, process.env.JWT_REFRESH_SECRET, (err, decoded) => {
     if (err) {
       return res.json({ result: false, error: 'Invalid refresh token' });
@@ -135,6 +139,7 @@ router.put('/request_update', checkIfAlreadyPresentToken, (req, res) => {
     res.json({ result: false, error: 'Missing or empty fields'});
     return;
   }
+
   User.findOne({
     $and: [
       { userName: new RegExp('^' + req.body.userName + '$', 'i') }, 
@@ -142,9 +147,12 @@ router.put('/request_update', checkIfAlreadyPresentToken, (req, res) => {
     ]
   }).then((dataUser) => {
     if (dataUser) {
-      if (!dataUser.updatePassword) {
+      if (!dataUser.passwordUpdate) {
         sendUpdatePasswordEmail(dataUser.email, dataUser.userName, req.body.password);
-        res.json({ result: true, newPassword: 'Validation email sent' });
+        User.updateOne({ email: req.body.email }, { passwordUpdate: true })
+        .then(() => {
+          res.json({ result: true, newPassword: 'Validation email sent' });
+        })
       } else {
         res.json({ result: false, error: 'New password not yet confirmed'});
       }
@@ -156,17 +164,23 @@ router.put('/request_update', checkIfAlreadyPresentToken, (req, res) => {
 
   // ROUTER GET VALIDATE PASSWORD UPDATE
 router.get('/validate_update', (req, res) => {
-  if (!checkBody(req.query, ['token'])) {
+  if (!checkBody(req.query, ['userName', 'token'])) {
     res.json({ result: false, error: 'Missing or empty fields' });
     return;
-  }    
- 
+  }
+
   jwt.verify(req.query.token, process.env.JWT_SECRET, async (err, decoded) => {
+    const userName = req.query.userName;
+    const user = await User.findOne({ userName: userName });
     if (err) {
-      return res.send('Invalid or expired link');
+      if (user) {
+        const verifiedEmail = await User.updateOne({ userName: userName }, { passwordUpdate : false })
+        if (verifiedEmail.modifiedCount > 0) {
+          return res.send(`<p>Invalid or expired link !<br>Resubmit a request to change a new password or log in with your initial password<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center; text-align: center">Return to the home page</a>`);
+        }
+      }
     }
-    const { email, password } = decoded;
-    const user = await User.findOne({ email });
+    const password = decoded.password;
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -180,6 +194,45 @@ router.get('/validate_update', (req, res) => {
 // ROUTER POST LOGOUT
 router.post('/logout', (req, res) => {
   res.json({ message: 'Success logout' });
+});
+
+router.delete('/delete_user_account', authenticateToken, (req, res) => {
+  User.findOne({ _id: req.user._id })
+  .then(userData => {
+    if (userData) {
+      Usercity.find()
+      .then(citiesData => {
+        const promises = citiesData.map(async e => {
+          if (e.user.includes(req.user._id) && e.user.length === 1) {
+            return await Usercity.deleteOne({ _id: e._id });
+          } else if (e.user.includes(req.user._id)) {
+            return await Usercity.updateOne({ _id: e._id }, { $pull: { user: req.user._id }});
+          }
+        });
+
+        Promise.all(promises)
+        .then(resultsData => {
+          const deleteCount = resultsData.filter(result => result && result.deletedCount > 0).length; 
+          const updateCount = resultsData.filter(result => result && result.modifiedCount > 0).length;
+          
+          User.deleteOne({ _id: req.user._id })
+          .then(() => { 
+            if (deleteCount > 0 && updateCount > 0) { 
+              return res.json({ bothResult: true }); 
+            } else if (deleteCount > 0) { 
+              return res.json({ deletedResult: true }); 
+            } else if (updateCount > 0) { 
+              return res.json({ updatedResult: true }); 
+            } else { 
+              return res.json({ anyResult: false }); 
+            } 
+          })
+        })
+      })
+    } else {
+      res.json({ result: false, error: 'User not found' });
+    }
+  })
 });
 
 module.exports = router;

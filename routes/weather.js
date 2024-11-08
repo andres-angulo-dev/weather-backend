@@ -27,7 +27,7 @@ let weather = [
 
 // Router post display home page cities
 router.get('/home_page', (req, res) => {
-	const fetchPromises = weather.map(cityName => {
+	const fetchPromises = weather.map(async cityName => {
 		return fetch(`https://api.openweathermap.org/data/2.5/weather?q=${cityName}&appid=${process.env.OWM_API_KEY}&units=metric`)
 		.then(res => res.json())
 	});
@@ -113,7 +113,8 @@ router.get('/my_cities_added', authenticateToken, (req, res) => {
 		})
 	})
 });
-		
+
+// Router delete city 
 router.delete('/:cityName', authenticateToken, (req, res) => {
 	Usercity.findOne ({ cityName: { $regex: new RegExp(req.params.cityName, "i") } })
 	.then(data => {
