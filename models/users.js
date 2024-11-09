@@ -4,7 +4,7 @@ const userSchema = mongoose.Schema ({
     userName: {type: String, trim:true},
     email: {type: String, unique: true, trim: true},
     password: String,
-    passwordUpdate: {type: Boolean, default: false},
+    passwordUpdateRequestInProgress: {type: Boolean, default: false},
     verifiedEmail: {type: Boolean, default: false},
 })
 

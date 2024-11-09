@@ -65,14 +65,16 @@ router.get('/validate_email', (req, res) => {
     if (err) {
       const deletedUserData = await User.deleteOne({ email: req.query.userEmail });
       if (deletedUserData.deletedCount > 0) {
-        return res.send(`<p>Invalid or expired link !<br>Resubmit a new user account.<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center; text-align: center">Return to the home page</a>`);
+        return res.send(`<p>Invalid or expired link !<br>Resubmit a new user account.<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 150px; align-items: center; justify-content: center; text-align: center">Return to the home page</a>`);
+      } else {
+        return res.send(`<p>Invalid or expired link !<br>Resubmit a new user account.<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 150px; align-items: center; justify-content: center; text-align: center">Return to the home page</a>`);
       }
     }
     const userEmail = decoded.email;
     try {
       const data = await User.updateOne({ email: userEmail }, { $set: { verifiedEmail: true }})
       if (data.modifiedCount > 0) {
-        res.send(`<p>Email successfully verified.<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center; text-align: center;">Click here to log in</a>`);
+        res.send(`<p>Email successfully verified.<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 150px; align-items: center; justify-content: center; text-align: center;">Click here to log in</a>`);
       } else {
         res.send('Email adresse already verified');
       }
@@ -99,12 +101,12 @@ router.post('/signin', checkIfAlreadyPresentToken, (req, res) => {
       if (dataUser.verifiedEmail) {
         const decrypt = bcrypt.compareSync(req.body.password, dataUser.password);
         if (decrypt) {
-          if (dataUser.passwordUpdate === false) {
+          if (dataUser.passwordUpdateRequestInProgress === false) {
             const accessToken = generateAccessToken(dataUser._id);
             const refreshToken = generateRefreshToken(dataUser._id);
             res.json({ result: true, user: dataUserFormated(dataUser), accessToken: accessToken, refreshToken: refreshToken });
           } else {
-            User.updateOne({ passwordUpdate: dataUser.passwordUpdate}, { passwordUpdate: false });
+            User.updateOne({ passwordUpdateRequestInProgress: dataUser.passwordUpdateRequestInProgress}, { passwordUpdateRequestInProgress: false });
             res.json({ result: false, error: 'Password change request not yet confirmed'})
           }
         } else {
@@ -119,6 +121,7 @@ router.post('/signin', checkIfAlreadyPresentToken, (req, res) => {
   });
 });
 
+// ROUTER REFRESH ACCESS TOKEN
 router.post('/refresh_token', (req, res) => {
   if (!req.body.refreshToken) {
     return res.json({ result: false, error: 'Refresh token is required' })
@@ -131,6 +134,33 @@ router.post('/refresh_token', (req, res) => {
     const refreshAccessToken = generateAccessToken(decoded._id); 
     res.json({ result: true, accessToken: refreshAccessToken });
   });
+});
+
+// ROUTER PUT CHANGE PASSWORD
+router.put('/change_password', authenticateToken, (req, res) => {
+  console.log('ROOO');
+  if (!checkBody(req.body, ['userName', 'email', 'currentPassword', 'newPassword'])) {
+    res.json({ result: false, error: 'Missing or empty fields'});
+    return;
+  }
+  console.log('ALORS');
+  User.findOne({ _id: req.user._id })
+  .then((dataUser) => {
+    if (dataUser.userName === req.body.userName && dataUser.email === req.body.email ) {
+        const decrypt = bcrypt.compareSync(req.body.currentPassword, dataUser.password);
+        if (decrypt) {
+          const hash = bcrypt.hashSync(req.body.newPassword, 10)
+          User.updateOne({ _id: req.user._id }, { password: hash })
+          .then(() => {
+            res.json({ result: true, newPassword: 'Password changed' });
+          })
+        } else {
+          res.json({ result: false, error: 'Wrong password' });
+        }
+    } else {
+      res.json({ result: false, error: 'User not found' });
+    } 
+    });
 });
 
 // ROUTER PUT REQUEST PASSWORD UPDATE
@@ -147,9 +177,9 @@ router.put('/request_update', checkIfAlreadyPresentToken, (req, res) => {
     ]
   }).then((dataUser) => {
     if (dataUser) {
-      if (!dataUser.passwordUpdate) {
+      if (!dataUser.passwordUpdateRequestInProgress) {
         sendUpdatePasswordEmail(dataUser.email, dataUser.userName, req.body.password);
-        User.updateOne({ email: req.body.email }, { passwordUpdate: true })
+        User.updateOne({ email: req.body.email }, { passwordUpdateRequestInProgress: true })
         .then(() => {
           res.json({ result: true, newPassword: 'Validation email sent' });
         })
@@ -162,7 +192,7 @@ router.put('/request_update', checkIfAlreadyPresentToken, (req, res) => {
     });
 });
 
-  // ROUTER GET VALIDATE PASSWORD UPDATE
+// ROUTER GET CONFIRM PASSWORD UPDATE
 router.get('/validate_update', (req, res) => {
   if (!checkBody(req.query, ['userName', 'token'])) {
     res.json({ result: false, error: 'Missing or empty fields' });
@@ -174,7 +204,7 @@ router.get('/validate_update', (req, res) => {
     const user = await User.findOne({ userName: userName });
     if (err) {
       if (user) {
-        const verifiedEmail = await User.updateOne({ userName: userName }, { passwordUpdate : false })
+        const verifiedEmail = await User.updateOne({ userName: userName }, { passwordUpdateRequestInProgress : false })
         if (verifiedEmail.modifiedCount > 0) {
           return res.send(`<p>Invalid or expired link !<br>Resubmit a request to change a new password or log in with your initial password<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center; text-align: center">Return to the home page</a>`);
         }
@@ -218,13 +248,13 @@ router.delete('/delete_user_account', authenticateToken, (req, res) => {
           User.deleteOne({ _id: req.user._id })
           .then(() => { 
             if (deleteCount > 0 && updateCount > 0) { 
-              return res.json({ bothResult: true }); 
+              return res.json({ result: true }); 
             } else if (deleteCount > 0) { 
-              return res.json({ deletedResult: true }); 
+              return res.json({ result: true }); 
             } else if (updateCount > 0) { 
-              return res.json({ updatedResult: true }); 
+              return res.json({ result: true }); 
             } else { 
-              return res.json({ anyResult: false }); 
+              return res.json({ result: true }); 
             } 
           })
         })
