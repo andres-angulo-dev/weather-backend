@@ -139,7 +139,7 @@ router.post('/refresh_token', (req, res) => {
 // ROUTER PUT CHANGE PASSWORD
 router.put('/change_password', authenticateToken, (req, res) => {
   console.log('ROOO');
-  if (!checkBody(req.body, ['userName', 'email', 'currentPassword', 'newPassword'])) {
+  if (!checkBody(req.body, ['userName', 'email', 'currentPassword', 'newPassword', 'confirmPassword'])) {
     res.json({ result: false, error: 'Missing or empty fields'});
     return;
   }
@@ -147,17 +147,24 @@ router.put('/change_password', authenticateToken, (req, res) => {
   User.findOne({ _id: req.user._id })
   .then((dataUser) => {
     if (dataUser.userName === req.body.userName && dataUser.email === req.body.email ) {
+      if ( req.body.newPassword === req.body.confirmPassword ) {
         const decrypt = bcrypt.compareSync(req.body.currentPassword, dataUser.password);
         if (decrypt) {
           const hash = bcrypt.hashSync(req.body.newPassword, 10)
           User.updateOne({ _id: req.user._id }, { password: hash })
           .then(() => {
+          console.log('SIIII');
             res.json({ result: true, newPassword: 'Password changed' });
           })
         } else {
+          console.log('NOOON ');
           res.json({ result: false, error: 'Wrong password' });
         }
+      } else {
+        res.json({ result: false, error: 'Password mismatch' });
+      }
     } else {
+      console.log('T LA ?');
       res.json({ result: false, error: 'User not found' });
     } 
     });
@@ -165,7 +172,7 @@ router.put('/change_password', authenticateToken, (req, res) => {
 
 // ROUTER PUT REQUEST PASSWORD UPDATE
 router.put('/request_update', checkIfAlreadyPresentToken, (req, res) => {
-  if (!checkBody(req.body, ['userName', 'email', 'password'])) {
+  if (!checkBody(req.body, ['userName', 'email', 'password', 'confirmPassword'])) {
     res.json({ result: false, error: 'Missing or empty fields'});
     return;
   }
@@ -178,11 +185,15 @@ router.put('/request_update', checkIfAlreadyPresentToken, (req, res) => {
   }).then((dataUser) => {
     if (dataUser) {
       if (!dataUser.passwordUpdateRequestInProgress) {
-        sendUpdatePasswordEmail(dataUser.email, dataUser.userName, req.body.password);
-        User.updateOne({ email: req.body.email }, { passwordUpdateRequestInProgress: true })
-        .then(() => {
-          res.json({ result: true, newPassword: 'Validation email sent' });
-        })
+        if (req.body.password === req.body.confirmPassword) {
+          sendUpdatePasswordEmail(dataUser.email, dataUser.userName, req.body.password);
+          User.updateOne({ email: req.body.email }, { passwordUpdateRequestInProgress: true })
+          .then(() => {
+            res.json({ result: true, newPassword: 'Validation email sent' });
+          })
+        } else {
+          res.json({ result: false, error: 'Password mismatch' });
+        }
       } else {
         res.json({ result: false, error: 'New password not yet confirmed'});
       }
@@ -204,7 +215,7 @@ router.get('/validate_update', (req, res) => {
     const user = await User.findOne({ userName: userName });
     if (err) {
       if (user) {
-        const verifiedEmail = await User.updateOne({ userName: userName }, { passwordUpdateRequestInProgress : false })
+        const verifiedEmail = await User.updateOne({ userName: userName }, { passwordUpdateRequestInProgress: false })
         if (verifiedEmail.modifiedCount > 0) {
           return res.send(`<p>Invalid or expired link !<br>Resubmit a request to change a new password or log in with your initial password<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center; text-align: center">Return to the home page</a>`);
         }
@@ -216,6 +227,7 @@ router.get('/validate_update', (req, res) => {
     }
     const hash = bcrypt.hashSync(password, 10);
     user.password = hash;
+    user.passwordUpdateRequestInProgress = false;
     await user.save();
     res.send(`<p>Password successfully updated.<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center; text-align: center">Click here to log in</a>`);
   })
