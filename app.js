@@ -1,5 +1,6 @@
 require('dotenv').config();
 require('./models/connection');
+require('./modules/cronJobs');
 
 var express = require('express');
 var path = require('path');
@@ -17,8 +18,6 @@ const corsOptions = {
     credentials: true // Permet d'envoyer les cookies
 };
 app.use(cors(corsOptions));
-//const cors = require('cors');
-// app.use(cors());
 
 app.use(logger('dev'));
 app.use(express.json());
