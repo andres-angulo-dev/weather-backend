@@ -8,8 +8,9 @@ const jwt = require('jsonwebtoken');
 
 const { checkBody } = require('../modules/checkBody');
 const { sendWelcomeEmail, sendUpdatePasswordEmail } = require('../modules/emailService');
-const { checkIfAlreadyPresentToken } = require('../middlewares/checkIfAlreadyPresentToken');
+const { checkUnconfirmedUpdates } = require('../modules/checkUnconfirmedUpdates');
 const { generateAccessToken, generateRefreshToken } = require('../modules/jwtService');
+const { checkIfAlreadyPresentToken } = require('../middlewares/checkIfAlreadyPresentToken');
 const { authenticateToken } = require('../middlewares/authenticateToken');
 
 const dataUserFormated = (data) => {
@@ -19,9 +20,9 @@ const dataUserFormated = (data) => {
   };
 };
 
-// ROUTER POST SIGNUP
+// Router post signup
 router.post('/signup', (req, res) => {
-  if (!checkBody(req.body, ['userName', 'email', 'password'])) {
+  if (!checkBody(req.body, ['userName', 'email', 'password', 'confirmPassword'])) {
     res.json({ result: false, error: "Missing or empty fields"});
     return;
   }
@@ -36,16 +37,20 @@ router.post('/signup', (req, res) => {
       ]
     }).then(dataUser => {
       if (dataUser == null) {
-        const hash = bcrypt.hashSync(req.body.password, 10);
-        const newUser = new User({
-          userName: req.body.userName,
-          email: req.body.email.toLowerCase(),
-          password: hash,
-        });
-        sendWelcomeEmail(req.body.email, req.body.userName);
-        newUser.save().then((dataNewUser) => {
-          res.json({ result: true, newUser: dataUserFormated(dataNewUser) });
-        });
+        if (req.body.password === req.body.confirmPassword) {
+          const hash = bcrypt.hashSync(req.body.password, 10);
+          const newUser = new User({
+            userName: req.body.userName,
+            email: req.body.email.toLowerCase(),
+            password: hash,
+          });
+          sendWelcomeEmail(req.body.email, req.body.userName);
+          newUser.save().then((dataNewUser) => {
+            res.json({ result: true, newUser: dataUserFormated(dataNewUser) });
+          });
+        } else {
+          res.json({ result: false, error: 'Password mismatch' });
+        }
       } else {
         res.json({ result: false, error: 'Username or email address already exists' });
       }
@@ -55,7 +60,7 @@ router.post('/signup', (req, res) => {
   }
 });
 
-// ROUTER GET VERIFY EMAIL
+// Router get verify email
 router.get('/validate_email', (req, res) => { 
   if (!checkBody(req.query, ['userEmail', 'token'])) {
     res.json({ result: false, error: 'Missing or empty fields' });
@@ -84,7 +89,7 @@ router.get('/validate_email', (req, res) => {
   });
 });
 
-// ROUTER POST SIGNIN 
+// Router post signin
 router.post('/signin', checkIfAlreadyPresentToken, (req, res) => {
   if (!checkBody(req.body, ['password'])) {
     res.json({ result: false, error: "Missing or empty fields" });
@@ -100,15 +105,16 @@ router.post('/signin', checkIfAlreadyPresentToken, (req, res) => {
     if (dataUser) {
       if (dataUser.verifiedEmail) {
         const decrypt = bcrypt.compareSync(req.body.password, dataUser.password);
+        if (dataUser.tempUpdate.newPassword) {
+          const decryptNewPassword = bcrypt.compareSync(req.body.password, dataUser.tempUpdate.newPassword);
+          if (decryptNewPassword) {
+            res.json({ result: false, error: 'Password change request not yet confirmed'})
+          }
+        } 
         if (decrypt) {
-          if (dataUser.passwordUpdateRequestInProgress === false) {
             const accessToken = generateAccessToken(dataUser._id);
             const refreshToken = generateRefreshToken(dataUser._id);
             res.json({ result: true, user: dataUserFormated(dataUser), accessToken: accessToken, refreshToken: refreshToken });
-          } else {
-            User.updateOne({ passwordUpdateRequestInProgress: dataUser.passwordUpdateRequestInProgress}, { passwordUpdateRequestInProgress: false });
-            res.json({ result: false, error: 'Password change request not yet confirmed'})
-          }
         } else {
           res.json({ result: false, error: 'Wrong password'})
         }
@@ -121,7 +127,7 @@ router.post('/signin', checkIfAlreadyPresentToken, (req, res) => {
   });
 });
 
-// ROUTER REFRESH ACCESS TOKEN
+// Router refresh access token
 router.post('/refresh_token', (req, res) => {
   if (!req.body.refreshToken) {
     return res.json({ result: false, error: 'Refresh token is required' })
@@ -136,14 +142,12 @@ router.post('/refresh_token', (req, res) => {
   });
 });
 
-// ROUTER PUT CHANGE PASSWORD
+// Router put change password
 router.put('/change_password', authenticateToken, (req, res) => {
-  console.log('ROOO');
   if (!checkBody(req.body, ['userName', 'email', 'currentPassword', 'newPassword', 'confirmPassword'])) {
     res.json({ result: false, error: 'Missing or empty fields'});
     return;
   }
-  console.log('ALORS');
   User.findOne({ _id: req.user._id })
   .then((dataUser) => {
     if (dataUser.userName === req.body.userName && dataUser.email === req.body.email ) {
@@ -151,26 +155,23 @@ router.put('/change_password', authenticateToken, (req, res) => {
         const decrypt = bcrypt.compareSync(req.body.currentPassword, dataUser.password);
         if (decrypt) {
           const hash = bcrypt.hashSync(req.body.newPassword, 10)
-          User.updateOne({ _id: req.user._id }, { password: hash })
+          User.updateOne({ _id: req.user._id }, { $set: {password: hash }})
           .then(() => {
-          console.log('SIIII');
             res.json({ result: true, newPassword: 'Password changed' });
           })
         } else {
-          console.log('NOOON ');
           res.json({ result: false, error: 'Wrong password' });
         }
       } else {
         res.json({ result: false, error: 'Password mismatch' });
       }
     } else {
-      console.log('T LA ?');
       res.json({ result: false, error: 'User not found' });
     } 
     });
 });
 
-// ROUTER PUT REQUEST PASSWORD UPDATE
+// Router put request password update
 router.put('/request_update', checkIfAlreadyPresentToken, (req, res) => {
   if (!checkBody(req.body, ['userName', 'email', 'password', 'confirmPassword'])) {
     res.json({ result: false, error: 'Missing or empty fields'});
@@ -184,12 +185,24 @@ router.put('/request_update', checkIfAlreadyPresentToken, (req, res) => {
     ]
   }).then((dataUser) => {
     if (dataUser) {
-      if (!dataUser.passwordUpdateRequestInProgress) {
+      if (!dataUser.forgotPasswordRequestInProgress) {
+        const hash = bcrypt.hashSync(req.body.password, 10);
         if (req.body.password === req.body.confirmPassword) {
           sendUpdatePasswordEmail(dataUser.email, dataUser.userName, req.body.password);
-          User.updateOne({ email: req.body.email }, { passwordUpdateRequestInProgress: true })
+          User.updateOne({ email: req.body.email }, { $set: {
+            forgotPasswordRequestInProgress: true,
+            tempUpdate: {
+              newPassword: hash,
+              timeStamp: new Date(),
+              }
+            }
+          })
           .then(() => {
             res.json({ result: true, newPassword: 'Validation email sent' });
+            setTimeout(async () => {
+              checkUnconfirmedUpdates(dataUser._id)
+              .catch(error => console.error('Failed to check updates', error));
+            }, 15 * 60 * 1000); // 15m * 60s * 1000 thousandth of a second
           })
         } else {
           res.json({ result: false, error: 'Password mismatch' });
@@ -203,7 +216,7 @@ router.put('/request_update', checkIfAlreadyPresentToken, (req, res) => {
     });
 });
 
-// ROUTER GET CONFIRM PASSWORD UPDATE
+// Router get confirm password update
 router.get('/validate_update', (req, res) => {
   if (!checkBody(req.query, ['userName', 'token'])) {
     res.json({ result: false, error: 'Missing or empty fields' });
@@ -215,10 +228,14 @@ router.get('/validate_update', (req, res) => {
     const user = await User.findOne({ userName: userName });
     if (err) {
       if (user) {
-        const verifiedEmail = await User.updateOne({ userName: userName }, { passwordUpdateRequestInProgress: false })
-        if (verifiedEmail.modifiedCount > 0) {
+        user.forgotPasswordRequestInProgress = false;
+        user.tempUpdate.newPassword = null;
+        user.tempUpdate.timeStamp = null;
+        await user.save();
+        //const verifiedEmail = await User.updateOne({ userName: userName }, { $set: { forgotPasswordRequestInProgress: false }});
+        //if (verifiedEmail.modifiedCount > 0) {
           return res.send(`<p>Invalid or expired link !<br>Resubmit a request to change a new password or log in with your initial password<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center; text-align: center">Return to the home page</a>`);
-        }
+       // }
       }
     }
     const password = decoded.password;
@@ -227,13 +244,15 @@ router.get('/validate_update', (req, res) => {
     }
     const hash = bcrypt.hashSync(password, 10);
     user.password = hash;
-    user.passwordUpdateRequestInProgress = false;
+    user.forgotPasswordRequestInProgress = false;
+    user.tempUpdate.newPassword = null;
+    user.tempUpdate.timeStamp = null;
     await user.save();
     res.send(`<p>Password successfully updated.<p> <a href="http://127.0.0.1:5500/Frontend/" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center; text-align: center">Click here to log in</a>`);
   })
 });
 
-// ROUTER POST LOGOUT
+// Router post logout
 router.post('/logout', (req, res) => {
   res.json({ message: 'Success logout' });
 });
