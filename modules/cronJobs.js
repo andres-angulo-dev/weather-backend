@@ -3,7 +3,7 @@ const User = require('../models/users');
 
 const cleanUnconfirmAccounts = async () =>  {
     const now = new Date();
-    const cutoff = new Date((now - 2 * 60 * 1000) - 30000)
+    const cutoff = new Date((now - 15 * 60 * 1000) - 5000); // (15m * 60s * 1000 thousandth of a second) - 5000 = 14m55s
 
     console.log('NOW:', now); 
     console.log('CUTOFF:', cutoff);
@@ -17,7 +17,7 @@ const cleanUnconfirmAccounts = async () =>  {
         if (result.deletedCount > 0) {
             console.log(`Deleted ${result.deletedCount} unconfirmed accounts`);
         } else {
-            console.log('No unconfirmed accounts found to delete')
+            console.log('No unconfirmed accounts found to delete');
         }
     } catch (error) {
         console.error('Failed to clean unconfirmed accounts: ', error);

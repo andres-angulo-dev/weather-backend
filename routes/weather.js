@@ -8,21 +8,18 @@ const { authenticateToken } = require('../middlewares/authenticateToken');
 
 function myNewCityFormatedData(data) {
 	return {
-		cityName: data.cityName
+		cityName: data.cityName,
 	}
 };
 
 let weather = [
-    "Beijing",
-    "New Delhi",
+	"Mexico",
     "Tokyo",
     "Moscow",
     "Jakarta",
-    "Lima",
     "Seoul",
     "London",
-    "Cairo",
-    "Mexico"
+    "New York",
 ];
 
 // Router post display home page cities
@@ -37,7 +34,7 @@ router.get('/home_page', (req, res) => {
 	});
 });
 
-// Router post to save a new city in the count user 
+// Router post to save a new city in the account user 
 router.post('/add_new_city', authenticateToken, (req, res) => {
 	Usercity.findOne({ cityName: new RegExp(req.body.cityName, 'i') })
 	.then(data => {
@@ -87,7 +84,7 @@ router.get('/my_cities_added', authenticateToken, (req, res) => {
 	Usercity.find({ user: req.user._id })
 	.then(data => {
 		const myCitiesName = data.map(e => e.cityName);
-		const fetchPromises = myCitiesName.map(cityName => {
+		const fetchPromises = myCitiesName.map(async cityName => {
 			return fetch(`https://api.openweathermap.org/data/2.5/weather?q=${cityName}&appid=${process.env.OWM_API_KEY}&units=metric`)
 			.then(res => res.json())
 		});
@@ -113,6 +110,24 @@ router.get('/my_cities_added', authenticateToken, (req, res) => {
 		})
 	})
 });
+
+// Router get the locale time of a city 
+router.get('/local_time/:lat/:lon', /*authenticateToken,*/ async (req, res) => {
+	const lat = req.params.lat;
+	const lon = req.params.lon;
+	try {
+		const response = await fetch(`http://api.timezonedb.com/v2.1/get-time-zone?key=${process.env.LOCAL_TIME}&format=json&by=position&lat=${lat}&lng=${lon}`);
+		const apiTimeData = await response.json();
+		if (apiTimeData) {
+			console.log('YES');
+			res.json({ result: true, localTime: apiTimeData });
+		} else {
+			res.json({ result: false, error: "Error fetching local time" });
+		}
+	} catch (error) {
+		res.status(500).json({ result: false, error: "Internal server error" });
+	}
+})
 
 // Router delete city 
 router.delete('/:cityName', authenticateToken, (req, res) => {
