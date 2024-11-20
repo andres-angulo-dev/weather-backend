@@ -24,7 +24,6 @@ let weather = [
 
 // Router post display home page cities
 router.get('/home_page', (req, res) => {
-	res.setHeader('Access-Control-Allow-Origin', 'http://127.0.0.1:5500');
 	const fetchPromises = weather.map(async cityName => {
 		return fetch(`https://api.openweathermap.org/data/2.5/weather?q=${cityName}&appid=${process.env.OWM_API_KEY}&units=metric`)
 		.then(res => res.json())
