@@ -5,9 +5,6 @@ const cleanUnconfirmAccounts = async () =>  {
     const now = new Date();
     const cutoff = new Date((now - 15 * 60 * 1000) - 5000); // (15m * 60s * 1000 thousandth of a second) - 5000 = 14m55s
 
-    console.log('NOW:', now); 
-    console.log('CUTOFF:', cutoff);
-
     try {
         const result = await User.deleteMany({ 
             verifiedEmail: false,
