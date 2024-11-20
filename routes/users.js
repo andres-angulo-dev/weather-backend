@@ -48,7 +48,7 @@ router.post('/signup', async (req, res) => {
           });
           sendWelcomeEmail(req.body.email, req.body.userName);
           const dataNewUser = await newUser.save();
-          return res.status(2001).json({ result: true, newUser: dataUserFormated(dataNewUser) });
+          return res.status(201).json({ result: true, newUser: dataUserFormated(dataNewUser) });
         } else {
           return res.status(400).json({ result: false, error: 'Password mismatch' });
         }
