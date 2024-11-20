@@ -14,7 +14,7 @@ var weatherRouter = require('./routes/weather');
 var app = express();
 const cors = require('cors');
 const corsOptions = {
-    origin: 'http://127.0.0.1:5500', // Remplacez par l'origine de votre frontend
+    origin: ['http://127.0.0.1:5500', 'https://weather-frontend-kg6aw9c8y-afas75s-projects.vercel.app'], // Remplacez par l'origine de votre frontend
     credentials: true // Permet d'envoyer les cookies
 };
 app.use(cors(corsOptions));
