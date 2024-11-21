@@ -1,6 +1,8 @@
 const nodemailer = require('nodemailer');
 const { generateVerificationToken, generateValidationToken } = require('../modules/jwtService');
 
+const path ="https://weather-backend-rust.vercel.app"
+
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { user: process.env.MY_EMAIL, pass: process.env.MY_EMAIL_PASSWORD },
@@ -9,14 +11,14 @@ const transporter = nodemailer.createTransport({
 
 const sendWelcomeEmail = (userEmail, userName) => {
   const token = generateVerificationToken(userEmail);
-  const verificationUrl = `${process.env.PATH}/users/validate_email?userEmail=${userEmail}&token=${token}`;
+  const verificationUrl = `${path}/users/validate_email?userEmail=${userEmail}&token=${token}`;
   const mailOptions = {
     from: process.env.MY_EMAIL,
     to: userEmail,
     subject: 'Your Weather account confirmation',
     html: `<div style="padding: 0% 5%; display: flex; align-items: center; justify-content: center">
           <div style="background-color: #faf8f5; padding: 20px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1)">
-          <div><img style="width: 50px" src='https://weather-frontend-sage.vercel.app/images/my_logo.png' alt="Logo"/></div>
+          <div><img style="width: 50px" src='${path}/images/my_logo.png' alt="Logo"/></div>
           <div style="width: 100%; height: 2px; background-color: rgba(0, 0, 0, 0.4)"></div>
           <p style="margin: 20px 0 0 0">Hi ${userName},<p>
           <p style="margin: 20px 0">Thank you for choosing Your Weather !<br>Please confirm  your email address to help us ensure your account is always protected by clicking the button below :<p> 
@@ -40,7 +42,7 @@ const sendWelcomeEmail = (userEmail, userName) => {
 
 const sendUpdatePasswordEmail = (userEmail, userName, password) => {
   const token = generateValidationToken(userEmail, password);
-  const verificationUrl = `${process.env.PATH}/users/validate_update?userName=${userName}&token=${token}`;
+  const verificationUrl = `${path}/users/validate_update?userName=${userName}&token=${token}`;
 
   const mailOptions = {
     from: process.env.MY_EMAIL,
