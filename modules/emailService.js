@@ -9,7 +9,7 @@ const transporter = nodemailer.createTransport({
 
 const sendWelcomeEmail = (userEmail, userName) => {
   const token = generateVerificationToken(userEmail);
-  const verificationUrl = `http://localhost:3000/users/validate_email?userEmail=${userEmail}&token=${token}`;
+  const verificationUrl = `${process.env.PATH}/users/validate_email?userEmail=${userEmail}&token=${token}`;
   const mailOptions = {
     from: process.env.MY_EMAIL,
     to: userEmail,
@@ -40,7 +40,7 @@ const sendWelcomeEmail = (userEmail, userName) => {
 
 const sendUpdatePasswordEmail = (userEmail, userName, password) => {
   const token = generateValidationToken(userEmail, password);
-  const verificationUrl = `http://localhost:3000/users/validate_update?userName=${userName}&token=${token}`;
+  const verificationUrl = `${process.env.PATH}/users/validate_update?userName=${userName}&token=${token}`;
 
   const mailOptions = {
     from: process.env.MY_EMAIL,
