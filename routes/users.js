@@ -75,9 +75,9 @@ router.get('/validate_email', async (req, res) => {
       try {
         const deletedUserData = await User.deleteOne({ email: req.query.userEmail });
         if (deletedUserData.deletedCount > 0) {
-          return res.status(400).send(`<p>Invalid or expired link !<br>Resubmit a new user account.<p> <a href="${process.env.BASE_URL}" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 150px; align-items: center; justify-content: center; text-align: center">Return to the home page</a>`);
+          return res.status(400).send(`<p>Invalid or expired link !<br>Resubmit a new user account.<p> <a href="${process.env.WEB_SITE_URL}" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 150px; align-items: center; justify-content: center; text-align: center">Return to the home page</a>`);
         } else {
-          return res.status(400).send(`<p>Invalid or expired link !<br>Resubmit a new user account.<p> <a href="${process.env.BASE_URL}" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 150px; align-items: center; justify-content: center; text-align: center">Return to the home page</a>`);
+          return res.status(400).send(`<p>Invalid or expired link !<br>Resubmit a new user account.<p> <a href="${process.env.WEB_SITE_URL}" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 150px; align-items: center; justify-content: center; text-align: center">Return to the home page</a>`);
         }
       } catch (error) {
         return res.status(500).json({ status: 'Internal server error', error: error });
@@ -87,7 +87,7 @@ router.get('/validate_email', async (req, res) => {
     try {
       const data = await User.updateOne({ email: userEmail }, { $set: { verifiedEmail: true }})
       if (data.modifiedCount > 0) {
-        return res.status(200).send(`<p>Email successfully verified.<p> <a href="${process.env.BASE_URL}" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 150px; align-items: center; justify-content: center; text-align: center;">Click here to log in</a>`);
+        return res.status(200).send(`<p>Email successfully verified.<p> <a href="${process.env.WEB_SITE_URL}" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 150px; align-items: center; justify-content: center; text-align: center;">Click here to log in</a>`);
       } else {
         return res.status(409).send('Email adresse already verified');
       }
@@ -252,7 +252,7 @@ router.get('/validate_update', async (req, res) => {
           user.tempUpdate.newPassword = null;
           user.tempUpdate.timeStamp = null;
           await user.save();
-          return res.status(400).send(`<p>Invalid or expired link !<br>Resubmit a request to change a new password or log in with your initial password<p> <a href="${process.env.BASE_URL}" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center; text-align: center">Return to the home page</a>`);
+          return res.status(400).send(`<p>Invalid or expired link !<br>Resubmit a request to change a new password or log in with your initial password<p> <a href="${process.env.WEB_SITE_URL}" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center; text-align: center">Return to the home page</a>`);
         }
       }
       const password = decoded.password;
@@ -265,7 +265,7 @@ router.get('/validate_update', async (req, res) => {
       user.tempUpdate.newPassword = null;
       user.tempUpdate.timeStamp = null;
       await user.save();
-      return res.status(200).send(`<p>Password successfully updated.<p> <a href="${process.env.BASE_URL}" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center; text-align: center">Click here to log in</a>`);
+      return res.status(200).send(`<p>Password successfully updated.<p> <a href="${process.env.WEB_SITE_URL}" style="padding: 10px 20px; color: white; background-color: #8c92ac; text-decoration: none; display: flex; width: 30%; align-items: center; justify-content: center; text-align: center">Click here to log in</a>`);
     } catch (error) {
       return res.status(500).json({ status: 'Internal server error', error: error})
     }
