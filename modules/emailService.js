@@ -10,6 +10,7 @@ const transporter = nodemailer.createTransport({
 const sendWelcomeEmail = (userEmail, userName) => {
   const token = generateVerificationToken(userEmail);
   const verificationUrl = `${process.env.BASE_URL}/users/validate_email?userEmail=${userEmail}&token=${token}`;
+  console.error(process.env.BASE_URL);
   const mailOptions = {
     from: process.env.MY_EMAIL,
     to: userEmail,
