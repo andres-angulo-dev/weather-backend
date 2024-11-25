@@ -107,7 +107,7 @@ router.post('/signin', checkIfAlreadyPresentToken, async (req, res) => {
     const dataUser = await User.findOne({ 
       $or: [
         { userName: new RegExp('^' + req.body.userName + '$', 'i') }, 
-        { email: req.body.email }, //toLowerCase()
+        { email: req.body.email.toLowerCase() },
       ]
     })
     if (dataUser) {
