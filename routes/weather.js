@@ -25,7 +25,7 @@ let weather = [
 // Router post display home page cities
 router.get('/home_page', (req, res) => {
 	const fetchPromises = weather.map(async cityName => {
-		return fetch(`https://api.openweathermap.org/data/2.5/weather?q=${cityName}&appid=${process.env.OWM_API_KEY}&units=metric`)
+		return fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${process.env.OWM_API_KEY}&units=metric`)
 		.then(res => res.json())
 	});
 	Promise.all(fetchPromises)
