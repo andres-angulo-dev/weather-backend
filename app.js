@@ -14,8 +14,8 @@ var weatherRouter = require('./routes/weather');
 var app = express();
 const cors = require('cors');
 const corsOptions = {
-    origin: ['https://weather-frontend-sage.vercel.app', 'http://127.0.0.1:5500'], // Remplacez par l'origine de votre frontend
-    credentials: true // Permet d'envoyer les cookies
+    origin: ['https://weather-frontend-sage.vercel.app', 'http://127.0.0.1:5500'],
+    credentials: true
 };
 app.use(cors(corsOptions));
 

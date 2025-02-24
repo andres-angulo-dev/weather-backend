@@ -13,7 +13,7 @@ function myNewCityFormatedData(data) {
 };
 
 let weather = [
-	"Mexico",
+	"Mexico City",
     "Tokyo",
     "Moscow",
     "Jakarta",
@@ -58,7 +58,7 @@ router.post('/add_new_city', authenticateToken, async (req, res) => {
 	}
 });
 
-// Router post to add a city  without save in the home page
+// Router post to add a city without save in the home page
 router.post('/add_city_home_page', async (req, res) => {
 	const cityName = req.body.cityName.toLowerCase();
 	const formatedWeather = weather.map(e => e.toLowerCase());
@@ -66,7 +66,7 @@ router.post('/add_city_home_page', async (req, res) => {
 
 	try  {
 		if (!formatedWeather.includes(cityName)) {
-			const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${formatedCityName}&appid=${process.env.OWM_API_KEY}&units=metric`);
+			const response = await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${formatedCityName}&appid=${process.env.OWM_API_KEY}&units=metric`);
 			const apiData = await response.json();
 			if (!(apiData.cod === '404' && apiData.message === 'city not found')) {
 				return res.status(200).json({ result: true, city: apiData, cityName: formatedCityName });
@@ -87,7 +87,7 @@ router.get('/my_cities_added', authenticateToken, async (req, res) => {
 		const data = await Usercity.find({ user: req.user._id });
 		const myCitiesName = data.map(e => e.cityName);
 		const fetchPromises = myCitiesName.map(async cityName => {
-			const res =  await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${cityName}&appid=${process.env.OWM_API_KEY}&units=metric`);
+			const res =  await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${process.env.OWM_API_KEY}&units=metric`);
 			return res.json();
 		});
 		const userCities = await Promise.all(fetchPromises);
